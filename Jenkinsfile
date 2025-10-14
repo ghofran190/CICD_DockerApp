@@ -1,6 +1,5 @@
 pipeline {
     agent any
-
     environment {
         IMAGE_NAME = "ghofrane13/demo-helloworld"
         DOCKERHUB_CREDENTIALS = "dockerhub-creds" // ID des credentials Jenkins
@@ -9,7 +8,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/ghofran190/CICD_DockerApp.git'
+                git branch: 'master', url: 'https://github.com/ghofran190/CICD_DockerApp.git'
             }
         }
 
@@ -41,7 +40,6 @@ pipeline {
             }
         }
     }
-
     post {
         success {
             echo "Pipeline terminé avec succès. Image : ${IMAGE_NAME}:${IMAGE_TAG}"
