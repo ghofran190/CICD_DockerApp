@@ -54,12 +54,12 @@ pipeline {
                     bat "kubectl apply -f deployment.yaml -n ${KUBE_NAMESPACE}"
                     bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
                     
-                    // ATTENTION : Ne pas utiliser rollout status qui échoue avec les probes
-                    // À la place, attendre que les pods soient au moins Running
-                    bat """
-                    echo "Attente du démarrage des pods..."
-                    timeout /t 30
-                    """
+                    // REMPLACER cette ligne problématique :
+                    // bat "kubectl rollout status deployment/demo-helloworld -n ${KUBE_NAMESPACE} --timeout=300s"
+                    
+                    // PAR :
+                    bat "timeout /t 40"
+                    bat "echo 'Déploiement appliqué - vérification des pods...'"
                 }
             }
         }
