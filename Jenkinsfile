@@ -42,6 +42,27 @@ pipeline {
         }
     }
 
+    stage('Deploy to Kubernetes') {
+        steps {
+            script {
+                // Assurer que le namespace existe
+                bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                
+                // Appliquer les fichiers YAML
+                bat "kubectl apply -f deployment.yaml -n ${KUBE_NAMESPACE}"
+                bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
+                
+                // Vérifier le déploiement
+                bat "kubectl rollout status deployment/demo-helloworld -n ${KUBE_NAMESPACE} --timeout=300s"
+                
+                // Vérification supplémentaire
+                bat "kubectl get pods -n ${KUBE_NAMESPACE}"
+                bat "kubectl get services -n ${KUBE_NAMESPACE}"
+            }
+        }
+    }
+
+
     post {
         success {
             echo "Pipeline terminé avec succès. Image : ${IMAGE_NAME}:${IMAGE_TAG}"
