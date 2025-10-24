@@ -20,7 +20,7 @@ spec:
       - name: demo-helloworld
         image: ghofrane13/demo-helloworld:latest
         ports:
-        - containerPort: 8086
+        - containerPort: 8082
         env:
         - name: JAVA_OPTS
           value: "-Xmx256m -Xms128m"
@@ -34,13 +34,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 8086
+            port: 8082
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /
-            port: 8086
+            port: 8082
           initialDelaySeconds: 5
           periodSeconds: 5
 ---
@@ -57,5 +57,5 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 8086
+      targetPort: 8082
   type: LoadBalancer
