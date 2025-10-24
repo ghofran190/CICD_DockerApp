@@ -53,8 +53,8 @@ pipeline {
                     
                     // Mettre à jour l'image avec le tag de build
                     bat """
-                    (Get-Content deployment-with-tag.yaml) -replace 'BUILD_TAG', '${IMAGE_TAG}' | Set-Content deployment-current.yaml
-                    """
+                      (Get-Content deployment-with-tag.yaml) -replace \"BUILD_TAG\", \"${IMAGE_TAG}\" | Set-Content deployment-current.yaml
+                      """
                     
                     // Déployer
                     bat "kubectl apply -f deployment-current.yaml -n ${KUBE_NAMESPACE}"
