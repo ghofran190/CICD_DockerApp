@@ -1,0 +1,31 @@
+replicaCount: 2
+
+image:
+  repository: ghofrane13/demo-helloworld
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8086
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+livenessProbe:
+  path: /
+  port: 8086
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  path: /
+  port: 8086
+  initialDelaySeconds: 5
+  periodSeconds: 5

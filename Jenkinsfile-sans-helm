@@ -42,27 +42,49 @@ pipeline {
                 }
             }
         }
-    }
+    
 
-    stage('Deploy to Kubernetes') {
-        steps {
-            script {
-                // Assurer que le namespace existe
-                bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
-                
-                // Appliquer les fichiers YAML
-                bat "kubectl apply -f deployment.yaml -n ${KUBE_NAMESPACE}"
-                bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
-                
-                // Vérifier le déploiement
-                bat "kubectl rollout status deployment/demo-helloworld -n ${KUBE_NAMESPACE} --timeout=300s"
-                
-                // Vérification supplémentaire
-                bat "kubectl get pods -n ${KUBE_NAMESPACE}"
+    
+        stage('Deploy to Kubernetes (Sans Helm)') {
+            steps {
+                script {
+                    // Créer le namespace
+                    bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                    
+                    // Mettre à jour l'image avec le tag de build
+                    bat """
+                    (Get-Content deployment-with-tag.yaml) -replace 'BUILD_TAG', '${IMAGE_TAG}' | Set-Content deployment-current.yaml
+                    """
+                    
+                    // Déployer
+                    bat "kubectl apply -f deployment-current.yaml -n ${KUBE_NAMESPACE}"
+                    bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
+                    
+                    // Attendre que le déploiement soit ready
+                    bat "kubectl rollout status deployment/demo-helloworld -n ${KUBE_NAMESPACE} --timeout=300s"
+                }
+            }
+        }
+
+        stage('Verification') {
+            steps {
+                bat "kubectl get pods -n ${KUBE_NAMESPACE} -o wide"
                 bat "kubectl get services -n ${KUBE_NAMESPACE}"
+                bat "kubectl get deployments -n ${KUBE_NAMESPACE}"
+                
+                // Test de l'application
+                bat """
+                $service = kubectl get service demo-helloworld-service -n ${KUBE_NAMESPACE} -o json | ConvertFrom-Json
+                if ($service.status.loadBalancer.ingress) {
+                    Write-Host "Application déployée avec succès!"
+                } else {
+                    Write-Host " Service en cours de configuration..."
+                }
+                """
             }
         }
     }
+
 
 
     post {

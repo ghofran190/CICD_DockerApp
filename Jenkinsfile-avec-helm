@@ -1,0 +1,100 @@
+pipeline {
+    agent { 
+        label 'windows-agent' 
+    }
+    environment {
+        IMAGE_NAME = "ghofrane13/demo-helloworld"
+        DOCKERHUB_CREDENTIALS = "dockerhub-creds"
+        KUBE_NAMESPACE = "tp-devops"
+        HELM_CHART_PATH = "helm-chart"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '*/master']],
+                          userRemoteConfigs: [[url: 'https://github.com/ghofran190/CICD_DockerApp.git']]])
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                bat 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    IMAGE_TAG = "${env.BUILD_NUMBER}"
+                }
+                bat "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                bat "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS,
+                                                 usernameVariable: 'DOCKER_USER',
+                                                 passwordVariable: 'DOCKER_PASS')]) {
+                    bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                    bat "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                    bat "docker push ${IMAGE_NAME}:latest"
+                }
+            }
+        }
+
+        stage('Prepare Helm Chart') {
+            steps {
+                script {
+                    // Vérifier que le chart Helm existe
+                    bat "if (Test-Path ${HELM_CHART_PATH}) { Write-Host 'Chart Helm trouvé' } else { Write-Error 'Chart Helm manquant' }"
+                    
+                    // Lint le chart
+                    bat "helm lint ${HELM_CHART_PATH}"
+                }
+            }
+        }
+
+        stage('Deploy with Helm') {
+            steps {
+                script {
+                    // Créer le namespace
+                    bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                    
+                    // Déployer avec Helm
+                    bat "helm upgrade --install demo-helloworld ${HELM_CHART_PATH} -n ${KUBE_NAMESPACE} --set image.tag=${IMAGE_TAG} --wait --timeout 5m"
+                }
+            }
+        }
+
+        stage('Verification Helm') {
+            steps {
+                bat "helm list -n ${KUBE_NAMESPACE}"
+                bat "kubectl get pods -n ${KUBE_NAMESPACE}"
+                bat "kubectl get services -n ${KUBE_NAMESPACE}"
+                bat "kubectl get deployments -n ${KUBE_NAMESPACE}"
+                
+                // Test de rollback (démonstration)
+                bat """
+                Write-Host "Test de l'historique Helm:"
+                helm history demo-helloworld -n ${KUBE_NAMESPACE}
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Déploiement avec Helm réussi!"
+        }
+        failure {
+            echo " Échec du déploiement avec Helm"
+            script {
+                // Rollback automatique
+                bat "helm rollback demo-helloworld 0 -n ${KUBE_NAMESPACE} --timeout 3m || true"
+            }
+        }
+    }
+}
