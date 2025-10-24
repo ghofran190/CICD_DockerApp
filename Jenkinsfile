@@ -3,6 +3,8 @@ pipeline {
     environment {
         IMAGE_NAME = "ghofrane13/demo-helloworld"
         DOCKERHUB_CREDENTIALS = "dockerhub-creds"
+        KUBE_NAMESPACE = "tp-devops"
+
     }
 
     stages {
