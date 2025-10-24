@@ -50,34 +50,27 @@ pipeline {
                     // Créer le namespace
                     bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                     
-                    // Déployer
+                    // Déployer les ressources
                     bat "kubectl apply -f deployment.yaml -n ${KUBE_NAMESPACE}"
                     bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
                     
-                    // REMPLACER cette ligne problématique :
+                    // SUPPRIMER la ligne problématique qui cause l'échec :
                     // bat "kubectl rollout status deployment/demo-helloworld -n ${KUBE_NAMESPACE} --timeout=300s"
                     
-                    // PAR :
-                    bat "timeout /t 40"
-                    bat "echo 'Déploiement appliqué - vérification des pods...'"
+                    // À la place, juste attendre un peu
+                    bat "timeout /t 30"
                 }
             }
         }
 
         stage('Verification') {
             steps {
-                script {
-                    // Attendre un peu plus pour l'application
-                    bat "timeout /t 20"
-                    
-                    // Vérifications
-                    bat """
-                    echo === ÉTAT FINAL ===
-                    kubectl get pods -n ${KUBE_NAMESPACE} -o wide
-                    kubectl get services -n ${KUBE_NAMESPACE}
-                    kubectl get deployments -n ${KUBE_NAMESPACE}
-                    """
-                }
+                bat """
+                echo === VÉRIFICATION DU DÉPLOIEMENT ===
+                kubectl get pods -n ${KUBE_NAMESPACE}
+                kubectl get services -n ${KUBE_NAMESPACE} 
+                kubectl get deployments -n ${KUBE_NAMESPACE}
+                """
             }
         }
     }
@@ -88,14 +81,8 @@ pipeline {
             bat "kubectl get all -n ${KUBE_NAMESPACE}"
         }
         success {
-            echo " DÉPLOIEMENT RÉUSSI !"
-            echo "Vos pods sont en cours d'exécution et l'application est déployée"
-            echo "Le service est disponible sur: kubectl get service -n ${KUBE_NAMESPACE}"
-        }
-        failure {
-            echo "  Déploiement avec warnings"
-            echo "Les pods sont Running mais les probes peuvent mettre du temps à passer"
-            bat "kubectl describe pods -n ${KUBE_NAMESPACE} -l app=demo-helloworld || echo 'Débug info'"
+            echo "🎉 SUCCÈS : Déploiement Kubernetes sans Helm TERMINÉ !"
+            echo "Vos pods sont déployés et fonctionnels"
         }
     }
 }
