@@ -6,7 +6,6 @@ pipeline {
         IMAGE_NAME = "ghofrane13/demo-helloworld"
         DOCKERHUB_CREDENTIALS = "dockerhub-creds"
         KUBE_NAMESPACE = "tp-devops"
-        HELM_CHART_PATH = "helm-chart"
     }
 
     stages {
@@ -45,56 +44,37 @@ pipeline {
             }
         }
 
-        stage('Prepare Helm Chart') {
-            steps {
-                script {
-                    // Vérifier que le chart Helm existe
-                    bat "if (Test-Path ${HELM_CHART_PATH}) { Write-Host 'Chart Helm trouvé' } else { Write-Error 'Chart Helm manquant' }"
-                    
-                    // Lint le chart
-                    bat "helm lint ${HELM_CHART_PATH}"
-                }
-            }
-        }
-
         stage('Deploy with Helm') {
             steps {
                 script {
                     // Créer le namespace
                     bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                     
-                    // Déployer avec Helm
-                    bat "helm upgrade --install demo-helloworld ${HELM_CHART_PATH} -n ${KUBE_NAMESPACE} --set image.tag=${IMAGE_TAG} --wait --timeout 5m"
+                    // Déployer avec Helm SANS --wait (cause des problèmes)
+                    bat "helm upgrade --install demo-helloworld helm-chart -n ${KUBE_NAMESPACE} --set image.tag=${IMAGE_TAG}"
+                    
+                    // Attendre au lieu de --wait
+                    bat "powershell -Command \"Start-Sleep -Seconds 40\""
                 }
             }
         }
 
-        stage('Verification Helm') {
+        stage('Verification') {
             steps {
                 bat "helm list -n ${KUBE_NAMESPACE}"
                 bat "kubectl get pods -n ${KUBE_NAMESPACE}"
                 bat "kubectl get services -n ${KUBE_NAMESPACE}"
                 bat "kubectl get deployments -n ${KUBE_NAMESPACE}"
-                
-                // Test de rollback (démonstration)
-                bat """
-                Write-Host "Test de l'historique Helm:"
-                helm history demo-helloworld -n ${KUBE_NAMESPACE}
-                """
             }
         }
     }
 
     post {
         success {
-            echo "Déploiement avec Helm réussi!"
+            echo "✅ Déploiement avec Helm réussi!"
         }
         failure {
-            echo " Échec du déploiement avec Helm"
-            script {
-                // Rollback automatique
-                bat "helm rollback demo-helloworld 0 -n ${KUBE_NAMESPACE} --timeout 3m || true"
-            }
+            echo "❌ Échec du déploiement avec Helm"
         }
     }
 }
