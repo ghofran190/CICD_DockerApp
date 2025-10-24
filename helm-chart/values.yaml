@@ -8,7 +8,7 @@ image:
 service:
   type: LoadBalancer
   port: 80
-  targetPort: 8086
+  targetPort: 8082
 
 resources:
   requests:
@@ -20,12 +20,12 @@ resources:
 
 livenessProbe:
   path: /
-  port: 8086
-  initialDelaySeconds: 30
+  port: 8082
+  initialDelaySeconds: 180
   periodSeconds: 10
 
 readinessProbe:
   path: /
-  port: 8086
-  initialDelaySeconds: 5
+  port: 8082
+  initialDelaySeconds: 180
   periodSeconds: 5
