@@ -13,6 +13,14 @@ pipeline {
             steps {
                 checkout([$class: 'GitSCM', branches: [[name: '*/master']],
                           userRemoteConfigs: [[url: 'https://github.com/ghofran190/CICD_DockerApp.git']]])
+                
+                // VÉRIFICATION DES FICHIERS
+                bat """
+                echo === Vérification des fichiers YAML ===
+                dir *.yaml
+                echo === Contenu de deployment.yaml ===
+                type deployment.yaml
+                """
             }
         }
 
@@ -47,23 +55,15 @@ pipeline {
         stage('Deploy to Kubernetes (Sans Helm)') {
             steps {
                 script {
-                    // Créer le namespace
+                    // 1. Créer le namespace
                     bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                     
-                    // CORRECTION : Méthode plus simple pour remplacer le tag
-                    bat """
-                    @echo off
-                    set IMAGE_TAG=${IMAGE_TAG}
-                    echo Replacing BUILD_TAG with %IMAGE_TAG%
-                    copy deployment-with-tag.yaml deployment-current.yaml
-                    powershell -Command "(Get-Content deployment-current.yaml) -replace 'BUILD_TAG', '%IMAGE_TAG%' | Set-Content deployment-current.yaml"
-                    """
-                    
-                    // Appliquer les configurations
-                    bat "kubectl apply -f deployment-current.yaml -n ${KUBE_NAMESPACE}"
+                    // 2. OPTION SIMPLIFIÉE : Utiliser directement deployment.yaml (sans remplacement)
+                    bat "echo === Déploiement avec deployment.yaml (sans remplacement) ==="
+                    bat "kubectl apply -f deployment.yaml -n ${KUBE_NAMESPACE}"
                     bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
                     
-                    // Attendre que le déploiement soit ready
+                    // 3. Vérifier le déploiement
                     bat "kubectl rollout status deployment/demo-helloworld -n ${KUBE_NAMESPACE} --timeout=300s"
                 }
             }
@@ -71,14 +71,19 @@ pipeline {
 
         stage('Verification') {
             steps {
-                bat "kubectl get pods -n ${KUBE_NAMESPACE} -o wide"
-                bat "kubectl get services -n ${KUBE_NAMESPACE}"
-                bat "kubectl get deployments -n ${KUBE_NAMESPACE}"
-                
-                // Test de l'application
                 bat """
-                echo Verification du déploiement...
+                echo === PODS ===
                 kubectl get pods -n ${KUBE_NAMESPACE} -o wide
+                echo === SERVICES ===
+                kubectl get services -n ${KUBE_NAMESPACE}
+                echo === DÉPLOIEMENTS ===
+                kubectl get deployments -n ${KUBE_NAMESPACE}
+                """
+                
+                // Test simplifié de l'application
+                bat """
+                echo === Vérification de l'application ===
+                kubectl get pods -n ${KUBE_NAMESPACE} -l app=demo-helloworld
                 timeout /t 10
                 """
             }
@@ -86,14 +91,18 @@ pipeline {
     }
 
     post {
+        always {
+            echo "=== STATUT FINAL ==="
+            bat "kubectl get all -n ${KUBE_NAMESPACE} || echo 'Aucune ressource'"
+        }
         success {
-            echo " Déploiement Kubernetes sans Helm réussi!"
-            bat "kubectl get all -n ${KUBE_NAMESPACE}"
+            echo "✅ Déploiement Kubernetes sans Helm réussi!"
         }
         failure {
-            echo " Échec du déploiement sans Helm"
-            bat "kubectl describe pods -n ${KUBE_NAMESPACE} -l app=demo-helloworld"
-            bat "kubectl logs -n ${KUBE_NAMESPACE} -l app=demo-helloworld --tail=50"
+            echo "❌ Échec du déploiement sans Helm"
+            // Debug information
+            bat "kubectl describe pods -n ${KUBE_NAMESPACE} -l app=demo-helloworld || echo 'Pas de pods à décrire'"
+            bat "kubectl logs -n ${KUBE_NAMESPACE} -l app=demo-helloworld --tail=20 || echo 'Pas de logs disponibles'"
         }
     }
 }
