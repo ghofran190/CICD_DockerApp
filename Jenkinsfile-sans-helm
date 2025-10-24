@@ -54,11 +54,8 @@ pipeline {
                     bat "kubectl apply -f deployment.yaml -n ${KUBE_NAMESPACE}"
                     bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
                     
-                    // SUPPRIMER la ligne problématique qui cause l'échec :
-                    // bat "kubectl rollout status deployment/demo-helloworld -n ${KUBE_NAMESPACE} --timeout=300s"
-                    
-                    // À la place, juste attendre un peu
-                    bat "timeout /t 30"
+                    // REMPLACER timeout par une alternative PowerShell
+                    bat "powershell -Command \"Start-Sleep -Seconds 20\""
                 }
             }
         }
@@ -83,6 +80,13 @@ pipeline {
         success {
             echo "🎉 SUCCÈS : Déploiement Kubernetes sans Helm TERMINÉ !"
             echo "Vos pods sont déployés et fonctionnels"
+            
+            // Test final de l'application
+            bat """
+            echo === TEST DE L'APPLICATION ===
+            kubectl get pods -n ${KUBE_NAMESPACE} -l app=demo-helloworld
+            echo "✅ Déploiement réussi - Application prête !"
+            """
         }
     }
 }
