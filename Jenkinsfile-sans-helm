@@ -1,10 +1,11 @@
 pipeline {
-    agent { label 'windows-agent' }
+    agent { 
+        label 'windows-agent' 
+    }
     environment {
         IMAGE_NAME = "ghofrane13/demo-helloworld"
         DOCKERHUB_CREDENTIALS = "dockerhub-creds"
         KUBE_NAMESPACE = "tp-devops"
-
     }
 
     stages {
@@ -42,21 +43,23 @@ pipeline {
                 }
             }
         }
-    
 
-    
         stage('Deploy to Kubernetes (Sans Helm)') {
             steps {
                 script {
                     // Créer le namespace
                     bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                     
-                    // Mettre à jour l'image avec le tag de build
+                    // CORRECTION : Méthode plus simple pour remplacer le tag
                     bat """
-                      (Get-Content deployment-with-tag.yaml) -replace \"BUILD_TAG\", \"${IMAGE_TAG}\" | Set-Content deployment-current.yaml
-                      """
+                    @echo off
+                    set IMAGE_TAG=${IMAGE_TAG}
+                    echo Replacing BUILD_TAG with %IMAGE_TAG%
+                    copy deployment-with-tag.yaml deployment-current.yaml
+                    powershell -Command "(Get-Content deployment-current.yaml) -replace 'BUILD_TAG', '%IMAGE_TAG%' | Set-Content deployment-current.yaml"
+                    """
                     
-                    // Déployer
+                    // Appliquer les configurations
                     bat "kubectl apply -f deployment-current.yaml -n ${KUBE_NAMESPACE}"
                     bat "kubectl apply -f service.yaml -n ${KUBE_NAMESPACE}"
                     
@@ -74,25 +77,23 @@ pipeline {
                 
                 // Test de l'application
                 bat """
-                $service = kubectl get service demo-helloworld-service -n ${KUBE_NAMESPACE} -o json | ConvertFrom-Json
-                if ($service.status.loadBalancer.ingress) {
-                    Write-Host "Application déployée avec succès!"
-                } else {
-                    Write-Host " Service en cours de configuration..."
-                }
+                echo Verification du déploiement...
+                kubectl get pods -n ${KUBE_NAMESPACE} -o wide
+                timeout /t 10
                 """
             }
         }
     }
 
-
-
     post {
         success {
-            echo "Pipeline terminé avec succès. Image : ${IMAGE_NAME}:${IMAGE_TAG}"
+            echo " Déploiement Kubernetes sans Helm réussi!"
+            bat "kubectl get all -n ${KUBE_NAMESPACE}"
         }
         failure {
-            echo "Échec du pipeline."
+            echo " Échec du déploiement sans Helm"
+            bat "kubectl describe pods -n ${KUBE_NAMESPACE} -l app=demo-helloworld"
+            bat "kubectl logs -n ${KUBE_NAMESPACE} -l app=demo-helloworld --tail=50"
         }
     }
 }
