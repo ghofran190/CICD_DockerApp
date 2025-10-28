@@ -5,7 +5,6 @@ pipeline {
     environment {
         IMAGE_NAME = "ghofrane13/demo-helloworld"
         DOCKERHUB_CREDENTIALS = "dockerhub-creds"
-        KUBE_NAMESPACE = "tp-devops"
     }
 
     stages {
@@ -13,6 +12,16 @@ pipeline {
             steps {
                 checkout([$class: 'GitSCM', branches: [[name: '*/master']],
                           userRemoteConfigs: [[url: 'https://github.com/ghofran190/CICD_DockerApp.git']]])
+            }
+        }
+
+        stage('Start Minikube') {
+            steps {
+                script {
+                    // Démarrer Minikube si ce n'est pas déjà fait
+                    bat "minikube status || minikube start --driver=docker"
+                    bat "kubectl cluster-info"
+                }
             }
         }
 
@@ -25,10 +34,10 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    def IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    bat "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    bat "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
                 }
-                bat "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                bat "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
             }
         }
 
@@ -44,34 +53,78 @@ pipeline {
             }
         }
 
+        stage('Clean Helm Chart') {
+            steps {
+                script {
+                    // Supprimer tous les fichiers de template non nécessaires
+                    bat """
+                    @echo off
+                    echo === Nettoyage du chart Helm ===
+                    
+                    if exist "helm-chart\\templates\\tests" (
+                        echo Suppression des tests Helm...
+                        rmdir /s /q "helm-chart\\templates\\tests"
+                    )
+                    
+                    if exist "helm-chart\\templates\\serviceaccount.yaml" (
+                        echo Suppression du serviceaccount...
+                        del "helm-chart\\templates\\serviceaccount.yaml"
+                    )
+                    
+                    if exist "helm-chart\\templates\\ingress.yaml" (
+                        echo Suppression de ingress.yaml...
+                        del "helm-chart\\templates\\ingress.yaml"
+                    )
+                    
+                    if exist "helm-chart\\templates\\hpa.yaml" (
+                        echo Suppression de hpa.yaml...
+                        del "helm-chart\\templates\\hpa.yaml"
+                    )
+                    
+                    if exist "helm-chart\\templates\\NOTES.txt" (
+                        echo Suppression de NOTES.txt...
+                        del "helm-chart\\templates\\NOTES.txt"
+                    )
+                    
+                    echo ✅ Chart Helm nettoyé
+                    """
+                }
+            }
+        }
+
         stage('Deploy with Helm') {
             steps {
                 script {
+                    def IMAGE_TAG = "${env.BUILD_NUMBER}"
+                    
                     // Créer le namespace
-                    bat "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                    bat "kubectl create namespace tp-devops --dry-run=client -o yaml | kubectl apply -f -"
                     
-                    // Déployer avec Helm SANS --wait (cause des problèmes)
-                    bat "helm upgrade --install demo-helloworld helm-chart -n ${KUBE_NAMESPACE} --set image.tag=${IMAGE_TAG}"
+                    // Déployer avec Helm
+                    bat "helm upgrade --install demo-helloworld helm-chart -n tp-devops --set image.tag=${IMAGE_TAG}"
                     
-                    // Attendre au lieu de --wait
-                    bat "powershell -Command \"Start-Sleep -Seconds 40\""
+                    // Attendre
+                    bat "powershell -Command \"Start-Sleep -Seconds 50\""
                 }
             }
         }
 
         stage('Verification') {
             steps {
-                bat "helm list -n ${KUBE_NAMESPACE}"
-                bat "kubectl get pods -n ${KUBE_NAMESPACE}"
-                bat "kubectl get services -n ${KUBE_NAMESPACE}"
-                bat "kubectl get deployments -n ${KUBE_NAMESPACE}"
+                bat """
+                echo === VÉRIFICATION ===
+                helm list -n tp-devops
+                kubectl get pods -n tp-devops
+                kubectl get services -n tp-devops
+                kubectl get deployments -n tp-devops
+                """
             }
         }
     }
 
     post {
         success {
-            echo "✅ Déploiement avec Helm réussi!"
+            echo "🎉 SUCCÈS : Déploiement avec Helm réussi !"
         }
         failure {
             echo "❌ Échec du déploiement avec Helm"
