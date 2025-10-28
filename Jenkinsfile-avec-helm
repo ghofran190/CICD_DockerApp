@@ -5,6 +5,8 @@ pipeline {
     environment {
         IMAGE_NAME = "ghofrane13/demo-helloworld"
         DOCKERHUB_CREDENTIALS = "dockerhub-creds"
+        IMAGE_TAG = "latest"
+
     }
 
     stages {
